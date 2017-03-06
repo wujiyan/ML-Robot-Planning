@@ -25,6 +25,18 @@ class Robot(object):
         self.location = (0, 0)
         self.heading = 'up'
         self.maze_dim = maze_dim
+
+    def reconstruct_path(self, parent, current_node):
+        '''
+        Find the path from the goal to the start point
+        '''
+        if parent[current_node]:
+            p = self.reconstruct_path(parent, parent[current_node])
+            p.append(current_node)
+            return p
+        else:
+            return []
+        
     def AStar(self, start, goal):
 
         #If all children of one node have been traversed, put the node into close set
@@ -32,8 +44,9 @@ class Robot(object):
         #openset = [[i,j] for i in range(self.maze_dim) for j in range(self.maze_dim)]
         maze_dim = self.maze_dim
 
-        #Initial the map with scores in it
+        #Initial the map with total scores in it
         current_map = self.InitialMap()
+        current_map[(0,0)] = self.maze_dim
 
         #nodes in activeset have been reached and their children have not been searched.
         activeset = [start]
@@ -42,65 +55,62 @@ class Robot(object):
         min_node = start
 
         #g score and h score for A* algorithm
-        g_score = 0
+        g_score = self.InitialMap()
+        g_score[(0,0)] = 0
         h_score = self.DistToTarget(self.location)
 
         #record parents for each nodes
         parent = {}
 
         #iterate all nodes
-        while len(activeset):
+        while activeset:
             #find nodes with the minimum scores in the activeset
             min_score = 10000
             for node in activeset:
                 if current_map[node] < min_score:
                     min_node = node
                     min_score = current_map[node]
-            self.location = min_node
+            self.location = min_node 
 
             #If the node is the goal, return the path and break
             if self.ReachTarget():
-                return reconstruct_path(parent, goal);
+                print g_score
+                print "\n The optimal path is:"
+                return self.reconstruct_path(parent, goal);
                 #return current_map
 
-            #Children of this node will be traversed. Place it to closeset and remove it from activeset
-            closeset = closeset.append(self.location)
-            activeset = activeset.remove(self.location)
+
             #Look around its children at four directions
             for direction in ["u","r","d","l"]:
                 #find one child
                 current_node = self.Move(self.location, direction)
-                if current_node in closeset and testmaze.is_permissible([self.location[0], self.location[1]], direction):
-                    continue
-                g_score = current_map[self.location] + 1
+                #If this child has been searched or it was not accessible, pass
+                if closeset and current_node in closeset or testmaze.is_permissible([self.location[0], self.location[1]], direction) == False:
+                    continue;
+                #If this child was not in close set and it is accessible, count the score
+                g_score[current_node] = g_score[self.location] + 1.0
                 h_score = self.DistToTarget(current_node)
-                score = g_score + h_score
-                #make sure that the child was not in close set and it is accessible
-                if current_node not in activeset:
-                    activeset = activeset.append(current_node)
+                score = g_score[current_node]
+                #If the child was not in activeset, it had not been searched, so the score should be the minimum
+                if activeset and current_node not in activeset:
+                    activeset.append(current_node)
                     better = True
                 #if the node is in active set and the new score is smaller than previous number, replace it by the new one.
                 elif score < current_map[current_node]:
                     better = True
-                    #if the node is not in activeset, store the new score as its value
+                #Otherwise, do not change ethe score
                 else:
                     better = False
+
                 if better is True:
                     parent[current_node] = self.location
                     current_map[current_node] = score
 
-        return False
+            #Child of this node will be searched. Place it to closeset and remove it from activeset
+            closeset.append(self.location)
+            activeset.remove(self.location)
 
-    def reconstruct_path(parent, current_node):
-        '''
-        Find the path from the goal to the start point
-        '''
-        if len(parent[current_node]):
-            p = reconstruct_path(parent, parent[current_node])
-            p = p.append(current_node)
-            return p
-        else:
-            return []                        
+                      
 
     def next_move(self, sensors):
         '''
@@ -167,7 +177,7 @@ class Robot(object):
         '''
 
         return self.location in [(self.maze_dim/2, self.maze_dim/2),(self.maze_dim/2-1, self.maze_dim/2),
-                                 (self.maze_dim/2, self.maze_dim/2-1),(self.maze_dim - 1, self.maze_dim - 1)]
+                                 (self.maze_dim/2, self.maze_dim/2-1),(self.maze_dim/2 - 1, self.maze_dim/2 - 1)]
 
     def DistToTarget(self, location):
         '''
@@ -179,8 +189,7 @@ class Robot(object):
         '''
         Create an empty map with 100 in each box
         '''
-        UpdatedMap = np.full((self.maze_dim, self.maze_dim),100)
-        UpdatedMap[(0,0)] = self.maze_dim
+        UpdatedMap = np.full((self.maze_dim, self.maze_dim),1000)
 
         return UpdatedMap
 
